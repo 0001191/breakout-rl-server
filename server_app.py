@@ -1,14 +1,16 @@
 from __future__ import annotations
 
 import json
+import time
 from pathlib import Path
 
-from flask import Flask, abort, jsonify, redirect, send_from_directory
+from flask import Flask, Response, abort, jsonify, redirect, send_from_directory, stream_with_context
 
 
 ROOT = Path(__file__).resolve().parent
 DASHBOARD_DIR = ROOT / "dashboard"
 LIVE_DIR = ROOT / "artifacts" / "live"
+STREAM_FRAME_PATH = LIVE_DIR / "preview_live.jpg"
 
 
 def read_json(path: Path):
@@ -74,6 +76,26 @@ def api_logs():
     text = log_path.read_text(encoding="utf-8", errors="replace")
     lines = text.splitlines()[-120:]
     return jsonify({"lines": lines})
+
+
+@app.get("/api/preview-stream")
+def api_preview_stream():
+    def generate():
+        last_mtime = None
+        while True:
+            if STREAM_FRAME_PATH.exists():
+                mtime = STREAM_FRAME_PATH.stat().st_mtime_ns
+                if mtime != last_mtime:
+                    payload = STREAM_FRAME_PATH.read_bytes()
+                    yield b"--frame\r\nContent-Type: image/jpeg\r\n\r\n" + payload + b"\r\n"
+                    last_mtime = mtime
+            time.sleep(0.08)
+
+    return Response(
+        stream_with_context(generate()),
+        mimetype="multipart/x-mixed-replace; boundary=frame",
+        headers={"Cache-Control": "no-store, no-cache, must-revalidate, max-age=0"},
+    )
 
 
 if __name__ == "__main__":

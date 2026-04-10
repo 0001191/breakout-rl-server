@@ -40,6 +40,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--status-freq", type=int, default=2_000)
     parser.add_argument("--preview-freq", type=int, default=20_000)
     parser.add_argument("--preview-steps", type=int, default=300)
+    parser.add_argument("--stream-freq", type=int, default=32)
     parser.add_argument("--device", default="auto")
     parser.add_argument("--root-dir", default=".")
     return parser.parse_args()
@@ -73,6 +74,12 @@ def atomic_write_text(path: Path, content: str) -> None:
     tmp.replace(path)
 
 
+def atomic_write_image(path: Path, frame) -> None:
+    tmp = path.with_suffix(path.suffix + ".tmp")
+    iio.imwrite(tmp, frame)
+    tmp.replace(path)
+
+
 def configure_logging(root: Path) -> Path:
     live_dir = root / "artifacts" / "live"
     live_dir.mkdir(parents=True, exist_ok=True)
@@ -100,6 +107,7 @@ class LiveDashboardCallback(BaseCallback):
         status_freq: int,
         preview_freq: int,
         preview_steps: int,
+        stream_freq: int,
         total_timesteps: int,
         verbose: int = 0,
     ):
@@ -111,14 +119,18 @@ class LiveDashboardCallback(BaseCallback):
         self.status_freq = max(status_freq, 1)
         self.preview_freq = max(preview_freq, 1)
         self.preview_steps = max(preview_steps, 60)
+        self.stream_freq = max(stream_freq, 1)
         self.total_timesteps = total_timesteps
         self.started_at = 0.0
         self.preview_env = None
+        self.preview_obs = None
+        self.last_stream_timestep = -1
         self.history: list[dict[str, float | int | None]] = []
         self.status_path = self.live_dir / "status.json"
         self.history_path = self.live_dir / "history.json"
         self.preview_path = self.live_dir / "preview.png"
         self.preview_gif_path = self.live_dir / "preview.gif"
+        self.stream_frame_path = self.live_dir / "preview_live.jpg"
 
     def _init_callback(self) -> None:
         self.started_at = time.time()
@@ -131,18 +143,23 @@ class LiveDashboardCallback(BaseCallback):
         )
         self.preview_env = VecFrameStack(self.preview_env, n_stack=self.frame_stack)
         self.preview_env = VecTransposeImage(self.preview_env)
+        obs = self.preview_env.reset()
+        self.preview_obs = obs[0] if isinstance(obs, tuple) else obs
         self._write_status(phase="starting")
+        self._advance_live_stream(force=True)
         self._refresh_preview()
 
     def _on_step(self) -> bool:
         if self.num_timesteps % self.status_freq == 0:
             self._write_status(phase="training")
+        self._advance_live_stream()
         if self.num_timesteps % self.preview_freq == 0:
             self._refresh_preview()
         return True
 
     def _on_training_end(self) -> None:
         self._write_status(phase="finished")
+        self._advance_live_stream(force=True)
         self._refresh_preview()
         if self.preview_env is not None:
             self.preview_env.close()
@@ -191,9 +208,29 @@ class LiveDashboardCallback(BaseCallback):
             "mean_length_100": mean_length,
             "recent_episodes": recent,
             "last_preview_path": self.preview_gif_path.name if self.preview_gif_path.exists() else (self.preview_path.name if self.preview_path.exists() else None),
+            "stream_path": self.stream_frame_path.name if self.stream_frame_path.exists() else None,
         }
         atomic_write_text(self.status_path, json.dumps(payload, indent=2, ensure_ascii=False))
         atomic_write_text(self.history_path, json.dumps(self.history, indent=2, ensure_ascii=False))
+
+    def _advance_live_stream(self, *, force: bool = False) -> None:
+        if self.preview_env is None or self.preview_obs is None:
+            return
+        if not force and self.last_stream_timestep >= 0 and self.num_timesteps - self.last_stream_timestep < self.stream_freq:
+            return
+
+        action, _ = self.model.predict(self.preview_obs, deterministic=True)
+        obs, rewards, dones, infos = self.preview_env.step(action)
+        self.preview_obs = obs
+        images = self.preview_env.get_images()
+        if images:
+            atomic_write_image(self.stream_frame_path, images[0])
+
+        if bool(dones[0]):
+            reset_obs = self.preview_env.reset()
+            self.preview_obs = reset_obs[0] if isinstance(reset_obs, tuple) else reset_obs
+
+        self.last_stream_timestep = self.num_timesteps
 
     def _refresh_preview(self) -> None:
         if self.preview_env is None:
@@ -213,11 +250,14 @@ class LiveDashboardCallback(BaseCallback):
             if bool(dones[0]):
                 break
         if frame is not None:
-            iio.imwrite(self.preview_path, frame)
+            atomic_write_image(self.preview_path, frame)
         if frames:
             stride = max(len(frames) // 80, 1)
             sampled = frames[::stride]
             iio2.mimsave(self.preview_gif_path, sampled, format="GIF", duration=0.05, loop=0)
+        reset_obs = self.preview_env.reset()
+        self.preview_obs = reset_obs[0] if isinstance(reset_obs, tuple) else reset_obs
+        self._advance_live_stream(force=True)
 
 
 def main() -> None:
@@ -280,6 +320,7 @@ def main() -> None:
         status_freq=args.status_freq,
         preview_freq=args.preview_freq,
         preview_steps=args.preview_steps,
+        stream_freq=args.stream_freq,
         total_timesteps=args.total_timesteps,
     )
 
@@ -302,6 +343,7 @@ def main() -> None:
         "status_freq": args.status_freq,
         "preview_freq": args.preview_freq,
         "preview_steps": args.preview_steps,
+        "stream_freq": args.stream_freq,
         "device": args.device,
     }
     (run_model_dir / "run_config.json").write_text(json.dumps(config, indent=2), encoding="utf-8")

@@ -1,7 +1,7 @@
 const statusUrl = "../artifacts/live/status.json";
 const historyUrl = "../artifacts/live/history.json";
 const previewUrl = "../artifacts/live/preview.png";
-const previewGifUrl = "../artifacts/live/preview.gif";
+const previewStreamUrl = "../api/preview-stream";
 
 const phaseBadge = document.getElementById("phaseBadge");
 const timesteps = document.getElementById("timesteps");
@@ -15,7 +15,8 @@ const recentEpisodes = document.getElementById("recentEpisodes");
 const rewardChart = document.getElementById("rewardChart");
 const refreshButton = document.getElementById("refreshButton");
 const logPanel = document.getElementById("logPanel");
-let currentPreviewKey = null;
+
+let streamStarted = false;
 
 function safeNumber(value, digits = 2) {
   if (value === null || value === undefined || Number.isNaN(Number(value))) return "-";
@@ -105,6 +106,18 @@ function renderEpisodes(episodes) {
   });
 }
 
+function ensurePreviewStream(status) {
+  if (!streamStarted && status.stream_path) {
+    previewImage.src = `${previewStreamUrl}?t=${Date.now()}`;
+    streamStarted = true;
+    return;
+  }
+
+  if (!streamStarted && status.last_preview_path) {
+    previewImage.src = `${previewUrl}?v=${status.preview_updated_at || Date.now()}`;
+  }
+}
+
 async function refresh() {
   try {
     const [status, history] = await Promise.all([loadJson(statusUrl), loadJson(historyUrl)]);
@@ -115,14 +128,7 @@ async function refresh() {
     epsilon.textContent = safeNumber(status.exploration_rate, 4);
     loss.textContent = safeNumber(status.loss, 4);
     fps.textContent = `${safeNumber(status.fps, 1)} step/s`;
-    const previewPath = status.last_preview_path || "preview.gif";
-    const previewBase = previewPath.endsWith(".gif") ? previewGifUrl : previewUrl;
-    const previewVersion = status.preview_updated_at || previewPath;
-    const nextPreviewKey = `${previewPath}:${previewVersion}`;
-    if (currentPreviewKey !== nextPreviewKey) {
-      previewImage.src = `${previewBase}?v=${previewVersion}`;
-      currentPreviewKey = nextPreviewKey;
-    }
+    ensurePreviewStream(status);
     drawChart(history);
     renderEpisodes(status.recent_episodes || []);
   } catch (error) {
@@ -137,6 +143,10 @@ async function refresh() {
     logPanel.textContent = `日志读取失败：${error.message}`;
   }
 }
+
+previewImage.addEventListener("error", () => {
+  streamStarted = false;
+});
 
 refreshButton.addEventListener("click", refresh);
 refresh();
