@@ -15,6 +15,7 @@ const recentEpisodes = document.getElementById("recentEpisodes");
 const rewardChart = document.getElementById("rewardChart");
 const refreshButton = document.getElementById("refreshButton");
 const logPanel = document.getElementById("logPanel");
+let currentPreviewKey = null;
 
 function safeNumber(value, digits = 2) {
   if (value === null || value === undefined || Number.isNaN(Number(value))) return "-";
@@ -116,7 +117,12 @@ async function refresh() {
     fps.textContent = `${safeNumber(status.fps, 1)} step/s`;
     const previewPath = status.last_preview_path || "preview.gif";
     const previewBase = previewPath.endsWith(".gif") ? previewGifUrl : previewUrl;
-    previewImage.src = `${previewBase}?t=${Date.now()}`;
+    const previewVersion = status.preview_updated_at || previewPath;
+    const nextPreviewKey = `${previewPath}:${previewVersion}`;
+    if (currentPreviewKey !== nextPreviewKey) {
+      previewImage.src = `${previewBase}?v=${previewVersion}`;
+      currentPreviewKey = nextPreviewKey;
+    }
     drawChart(history);
     renderEpisodes(status.recent_episodes || []);
   } catch (error) {

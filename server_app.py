@@ -51,6 +51,12 @@ def api_status():
     payload = read_json(LIVE_DIR / "status.json")
     if payload is None:
         return jsonify({"phase": "idle", "message": "training has not started yet"}), 200
+    preview_gif = LIVE_DIR / "preview.gif"
+    preview_png = LIVE_DIR / "preview.png"
+    preview_file = preview_gif if preview_gif.exists() else preview_png if preview_png.exists() else None
+    if preview_file is not None:
+        payload["last_preview_path"] = preview_file.name
+        payload["preview_updated_at"] = int(preview_file.stat().st_mtime_ns)
     return jsonify(payload)
 
 
