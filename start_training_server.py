@@ -18,6 +18,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--buffer-size", type=int, default=50_000)
     parser.add_argument("--preview-freq", type=int, default=20_000)
     parser.add_argument("--status-freq", type=int, default=2_000)
+    parser.add_argument("--stream-freq", type=int, default=32)
     return parser.parse_args()
 
 
@@ -44,6 +45,8 @@ def main() -> None:
         str(args.preview_freq),
         "--status-freq",
         str(args.status_freq),
+        "--stream-freq",
+        str(args.stream_freq),
     ]
 
     with runner_log.open("a", encoding="utf-8") as log_file:
