@@ -18,6 +18,8 @@ const refreshButton = document.getElementById("refreshButton");
 const logPanel = document.getElementById("logPanel");
 
 let currentFrameVersion = null;
+let pendingFrameVersion = null;
+let frameLoading = false;
 
 function safeNumber(value, digits = 2) {
   if (value === null || value === undefined || Number.isNaN(Number(value))) return "-";
@@ -118,10 +120,25 @@ async function refreshFrame() {
     const frame = await loadJson(frameStatusUrl);
     if (!frame.available) return;
     const version = String(frame.updated_at || "");
-    if (version && version !== currentFrameVersion) {
-      previewImage.src = `${liveFrameUrl}?v=${version}`;
-      currentFrameVersion = version;
+    if (!version || version === currentFrameVersion || version === pendingFrameVersion || frameLoading) {
+      return;
     }
+
+    frameLoading = true;
+    pendingFrameVersion = version;
+    const nextSrc = `${liveFrameUrl}?v=${version}`;
+    const probe = new Image();
+    probe.onload = () => {
+      previewImage.src = nextSrc;
+      currentFrameVersion = version;
+      pendingFrameVersion = null;
+      frameLoading = false;
+    };
+    probe.onerror = () => {
+      pendingFrameVersion = null;
+      frameLoading = false;
+    };
+    probe.src = nextSrc;
   } catch (error) {
     // Keep the last good frame on screen.
   }
@@ -157,4 +174,4 @@ refreshButton.addEventListener("click", refresh);
 refresh();
 refreshFrame();
 setInterval(refresh, 1500);
-setInterval(refreshFrame, 120);
+setInterval(refreshFrame, 350);
