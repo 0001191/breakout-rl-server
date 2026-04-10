@@ -20,6 +20,7 @@ const logPanel = document.getElementById("logPanel");
 let currentFrameVersion = null;
 let pendingFrameVersion = null;
 let frameLoading = false;
+let currentObjectUrl = null;
 
 function safeNumber(value, digits = 2) {
   if (value === null || value === undefined || Number.isNaN(Number(value))) return "-";
@@ -127,19 +128,35 @@ async function refreshFrame() {
     frameLoading = true;
     pendingFrameVersion = version;
     const nextSrc = `${liveFrameUrl}?v=${version}`;
+    const response = await fetch(nextSrc, { cache: "no-store" });
+    if (!response.ok) {
+      pendingFrameVersion = null;
+      frameLoading = false;
+      return;
+    }
+
+    const blob = await response.blob();
+    const objectUrl = URL.createObjectURL(blob);
     const probe = new Image();
     probe.onload = () => {
-      previewImage.src = nextSrc;
+      if (currentObjectUrl) {
+        URL.revokeObjectURL(currentObjectUrl);
+      }
+      currentObjectUrl = objectUrl;
+      previewImage.src = objectUrl;
       currentFrameVersion = version;
       pendingFrameVersion = null;
       frameLoading = false;
     };
     probe.onerror = () => {
+      URL.revokeObjectURL(objectUrl);
       pendingFrameVersion = null;
       frameLoading = false;
     };
-    probe.src = nextSrc;
+    probe.src = objectUrl;
   } catch (error) {
+    pendingFrameVersion = null;
+    frameLoading = false;
     // Keep the last good frame on screen.
   }
 }
