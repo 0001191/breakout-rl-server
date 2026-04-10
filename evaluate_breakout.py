@@ -13,7 +13,7 @@ from common import ENV_ID, ensure_ale_installed, prepare_paths
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Evaluate or record a trained Breakout DQN.")
+    parser = argparse.ArgumentParser(description="Evaluate or record a trained Atari DQN.")
     parser.add_argument("--model-path", required=True)
     parser.add_argument("--env-id", default=ENV_ID)
     parser.add_argument("--seed", type=int, default=7)
@@ -44,7 +44,7 @@ def make_eval_env(env_id: str, seed: int, frame_stack: int, record_video: bool, 
             video_folder=str(paths.videos),
             record_video_trigger=lambda step: step == 0,
             video_length=video_length,
-            name_prefix="breakout_eval",
+            name_prefix=f"{env_id.split('/')[-1].split('-')[0].lower()}_eval",
         )
     return env
 

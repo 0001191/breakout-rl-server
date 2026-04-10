@@ -7,7 +7,7 @@ from typing import Any
 import gymnasium as gym
 
 
-ENV_ID = "ALE/Breakout-v5"
+ENV_ID = "ALE/Pong-v5"
 
 
 @dataclass(frozen=True)

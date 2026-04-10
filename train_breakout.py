@@ -18,11 +18,11 @@ from common import ENV_ID, ensure_ale_installed, prepare_paths
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Train a Breakout DQN agent with Gymnasium + SB3.")
+    parser = argparse.ArgumentParser(description="Train a Pong DQN agent with Gymnasium + SB3.")
     parser.add_argument("--env-id", default=ENV_ID)
     parser.add_argument("--total-timesteps", type=int, default=2_000_000)
     parser.add_argument("--seed", type=int, default=7)
-    parser.add_argument("--n-envs", type=int, default=4)
+    parser.add_argument("--n-envs", type=int, default=1)
     parser.add_argument("--frame-stack", type=int, default=4)
     parser.add_argument("--buffer-size", type=int, default=50_000)
     parser.add_argument("--learning-starts", type=int, default=10_000)
@@ -41,16 +41,18 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--preview-freq", type=int, default=20_000)
     parser.add_argument("--preview-steps", type=int, default=300)
     parser.add_argument("--stream-freq", type=int, default=32)
+    parser.add_argument("--display-fps", type=float, default=12.0)
     parser.add_argument("--device", default="auto")
     parser.add_argument("--root-dir", default=".")
     return parser.parse_args()
 
 
-def make_train_env(env_id: str, n_envs: int, seed: int, frame_stack: int):
+def make_train_env(env_id: str, n_envs: int, seed: int, frame_stack: int, render_training: bool):
     env = make_atari_env(
         env_id,
         n_envs=n_envs,
         seed=seed,
+        env_kwargs={"render_mode": "rgb_array"} if render_training else None,
         wrapper_kwargs={"terminal_on_life_loss": True},
     )
     env = VecFrameStack(env, n_stack=frame_stack)
@@ -108,6 +110,7 @@ class LiveDashboardCallback(BaseCallback):
         preview_freq: int,
         preview_steps: int,
         stream_freq: int,
+        display_fps: float,
         total_timesteps: int,
         verbose: int = 0,
     ):
@@ -120,8 +123,10 @@ class LiveDashboardCallback(BaseCallback):
         self.preview_freq = max(preview_freq, 1)
         self.preview_steps = max(preview_steps, 60)
         self.stream_freq = max(stream_freq, 1)
+        self.display_fps = max(display_fps, 0.0)
         self.total_timesteps = total_timesteps
         self.started_at = 0.0
+        self.last_stream_at = 0.0
         self.preview_env = None
         self.preview_obs = None
         self.last_stream_timestep = -1
@@ -134,6 +139,7 @@ class LiveDashboardCallback(BaseCallback):
 
     def _init_callback(self) -> None:
         self.started_at = time.time()
+        self.last_stream_at = self.started_at
         self.preview_env = make_atari_env(
             self.env_id,
             n_envs=1,
@@ -214,21 +220,36 @@ class LiveDashboardCallback(BaseCallback):
         atomic_write_text(self.history_path, json.dumps(self.history, indent=2, ensure_ascii=False))
 
     def _advance_live_stream(self, *, force: bool = False) -> None:
-        if self.preview_env is None or self.preview_obs is None:
-            return
         if not force and self.last_stream_timestep >= 0 and self.num_timesteps - self.last_stream_timestep < self.stream_freq:
             return
 
-        action, _ = self.model.predict(self.preview_obs, deterministic=True)
-        obs, rewards, dones, infos = self.preview_env.step(action)
-        self.preview_obs = obs
-        images = self.preview_env.get_images()
+        images = []
+        if self.training_env is not None:
+            try:
+                images = self.training_env.get_images()
+            except Exception:
+                images = []
+
+        if not images and self.preview_env is not None and self.preview_obs is not None:
+            action, _ = self.model.predict(self.preview_obs, deterministic=True)
+            obs, rewards, dones, infos = self.preview_env.step(action)
+            self.preview_obs = obs
+            images = self.preview_env.get_images()
+            if bool(dones[0]):
+                reset_obs = self.preview_env.reset()
+                self.preview_obs = reset_obs[0] if isinstance(reset_obs, tuple) else reset_obs
+
         if images:
             atomic_write_image(self.stream_frame_path, images[0])
 
-        if bool(dones[0]):
-            reset_obs = self.preview_env.reset()
-            self.preview_obs = reset_obs[0] if isinstance(reset_obs, tuple) else reset_obs
+        if self.display_fps > 0 and getattr(self.training_env, "num_envs", 1) == 1:
+            now = time.time()
+            target = self.last_stream_at + (1.0 / self.display_fps)
+            delay = target - now
+            if delay > 0:
+                time.sleep(delay)
+                now = time.time()
+            self.last_stream_at = now
 
         self.last_stream_timestep = self.num_timesteps
 
@@ -267,13 +288,14 @@ def main() -> None:
     root = Path(args.root_dir).resolve()
     log_path = configure_logging(root)
     paths = prepare_paths(root)
-    run_name = f"breakout_dqn_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+    env_slug = args.env_id.split("/")[-1].split("-")[0].lower()
+    run_name = f"{env_slug}_dqn_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
     run_model_dir = paths.models / run_name
     run_model_dir.mkdir(parents=True, exist_ok=True)
     logging.info("Starting training run %s", run_name)
     logging.info("Live log file: %s", log_path)
 
-    train_env = make_train_env(args.env_id, args.n_envs, args.seed, args.frame_stack)
+    train_env = make_train_env(args.env_id, args.n_envs, args.seed, args.frame_stack, render_training=args.display_fps > 0)
     eval_env = make_eval_env(args.env_id, args.seed + 10_000, args.frame_stack)
 
     model = DQN(
@@ -321,6 +343,7 @@ def main() -> None:
         preview_freq=args.preview_freq,
         preview_steps=args.preview_steps,
         stream_freq=args.stream_freq,
+        display_fps=args.display_fps,
         total_timesteps=args.total_timesteps,
     )
 
@@ -344,6 +367,7 @@ def main() -> None:
         "preview_freq": args.preview_freq,
         "preview_steps": args.preview_steps,
         "stream_freq": args.stream_freq,
+        "display_fps": args.display_fps,
         "device": args.device,
     }
     (run_model_dir / "run_config.json").write_text(json.dumps(config, indent=2), encoding="utf-8")

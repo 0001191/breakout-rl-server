@@ -10,10 +10,10 @@
     <main class="layout">
       <section class="hero">
         <div>
-          <p class="eyebrow">Breakout RL</p>
-          <h1>强化学习训练看板</h1>
+          <p class="eyebrow">Pong RL</p>
+          <h1>乒乓对战训练看板</h1>
           <p class="sub">
-            这里展示的是训练中的当前策略，不是成品回放。后端持续运行环境和策略，前端只显示实时训练流、状态和曲线。
+            这里展示的是训练中的实时对局。后端在单环境里边打边学，前端只负责把当前比赛和训练状态投到屏幕上。
           </p>
         </div>
         <div class="hero-actions">
@@ -34,13 +34,17 @@
       <section class="grid main-panels">
         <article class="card preview-card">
           <div class="card-title">
-            <h3>实时训练画面</h3>
-            <span>后端持续推进环境并输出最新帧</span>
+            <h3>实时对战画面</h3>
+            <span>左侧是 Atari 程序，右侧是 DQN AI</span>
           </div>
-          <div class="preview-wrap">
+          <div class="arena-shell">
+            <div class="side-label left-label">Atari Program</div>
+            <div class="side-label right-label">DQN AI Agent</div>
+          </div>
+          <div class="preview-wrap pong-stage">
             <img id="previewImage" alt="训练实时画面" />
           </div>
-          <p class="hint">这一路画面由后端训练进程生成，前端只负责订阅显示，不再轮询重置 gif。</p>
+          <p class="hint">现在左边看到的是训练本身的进行过程，不是事后导出的 gif 或视频回放。</p>
         </article>
 
         <article class="card chart-card">
@@ -66,9 +70,9 @@
             <span>关于训练过程</span>
           </div>
           <ul class="notes">
-            <li>这里展示的是训练中的当前策略临时表现，不是最终模型的视频回放。</li>
-            <li>现在左侧画面采用后端实时流，逻辑上更接近“后端决策，前端展示”。</li>
-            <li>如果你还想继续逼近演讲现场大屏那种效果，下一步可以再加全屏模式和更大字号 HUD。</li>
+            <li>这不是离线录屏，而是后端训练环境边运行边推送当前帧。</li>
+            <li>默认已经切到 Pong，更接近你截图里那种“一边 AI、一边程序”的效果。</li>
+            <li>如果需要更像演讲大屏，下一步可以再做全屏模式、记分放大和镜头化布局。</li>
           </ul>
         </article>
       </section>
