@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import base64
 import json
 import time
 from pathlib import Path
@@ -90,6 +91,21 @@ def api_frame_status():
             "available": True,
             "path": STREAM_FRAME_PATH.name,
             "updated_at": int(STREAM_FRAME_PATH.stat().st_mtime_ns),
+        }
+    )
+
+
+@app.get("/api/frame-data")
+def api_frame_data():
+    if not STREAM_FRAME_PATH.exists():
+        return jsonify({"available": False})
+    payload = base64.b64encode(STREAM_FRAME_PATH.read_bytes()).decode("ascii")
+    return jsonify(
+        {
+            "available": True,
+            "updated_at": int(STREAM_FRAME_PATH.stat().st_mtime_ns),
+            "mime": "image/jpeg",
+            "data": payload,
         }
     )
 

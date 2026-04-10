@@ -1,8 +1,7 @@
 const statusUrl = "../artifacts/live/status.json";
 const historyUrl = "../artifacts/live/history.json";
 const previewUrl = "../artifacts/live/preview.png";
-const liveFrameUrl = "../artifacts/live/preview_live.jpg";
-const frameStatusUrl = "../api/frame-status";
+const frameDataUrl = "../api/frame-data";
 
 const phaseBadge = document.getElementById("phaseBadge");
 const timesteps = document.getElementById("timesteps");
@@ -18,9 +17,7 @@ const refreshButton = document.getElementById("refreshButton");
 const logPanel = document.getElementById("logPanel");
 
 let currentFrameVersion = null;
-let pendingFrameVersion = null;
 let frameLoading = false;
-let currentObjectUrl = null;
 
 function safeNumber(value, digits = 2) {
   if (value === null || value === undefined || Number.isNaN(Number(value))) return "-";
@@ -118,46 +115,20 @@ function ensureFallbackPreview(status) {
 
 async function refreshFrame() {
   try {
-    const frame = await loadJson(frameStatusUrl);
+    if (frameLoading) return;
+    frameLoading = true;
+    const frame = await loadJson(frameDataUrl);
     if (!frame.available) return;
     const version = String(frame.updated_at || "");
-    if (!version || version === currentFrameVersion || version === pendingFrameVersion || frameLoading) {
+    if (!version || version === currentFrameVersion) {
       return;
     }
-
-    frameLoading = true;
-    pendingFrameVersion = version;
-    const nextSrc = `${liveFrameUrl}?v=${version}`;
-    const response = await fetch(nextSrc, { cache: "no-store" });
-    if (!response.ok) {
-      pendingFrameVersion = null;
-      frameLoading = false;
-      return;
-    }
-
-    const blob = await response.blob();
-    const objectUrl = URL.createObjectURL(blob);
-    const probe = new Image();
-    probe.onload = () => {
-      if (currentObjectUrl) {
-        URL.revokeObjectURL(currentObjectUrl);
-      }
-      currentObjectUrl = objectUrl;
-      previewImage.src = objectUrl;
-      currentFrameVersion = version;
-      pendingFrameVersion = null;
-      frameLoading = false;
-    };
-    probe.onerror = () => {
-      URL.revokeObjectURL(objectUrl);
-      pendingFrameVersion = null;
-      frameLoading = false;
-    };
-    probe.src = objectUrl;
+    previewImage.src = `data:${frame.mime};base64,${frame.data}`;
+    currentFrameVersion = version;
   } catch (error) {
-    pendingFrameVersion = null;
-    frameLoading = false;
     // Keep the last good frame on screen.
+  } finally {
+    frameLoading = false;
   }
 }
 
