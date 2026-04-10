@@ -7,6 +7,7 @@ import time
 from datetime import datetime
 from pathlib import Path
 
+import imageio.v2 as iio2
 import imageio.v3 as iio
 from stable_baselines3 import DQN
 from stable_baselines3.common.callbacks import BaseCallback, CheckpointCallback, EvalCallback
@@ -117,6 +118,7 @@ class LiveDashboardCallback(BaseCallback):
         self.status_path = self.live_dir / "status.json"
         self.history_path = self.live_dir / "history.json"
         self.preview_path = self.live_dir / "preview.png"
+        self.preview_gif_path = self.live_dir / "preview.gif"
 
     def _init_callback(self) -> None:
         self.started_at = time.time()
@@ -188,7 +190,7 @@ class LiveDashboardCallback(BaseCallback):
             "mean_reward_100": mean_reward,
             "mean_length_100": mean_length,
             "recent_episodes": recent,
-            "last_preview_path": self.preview_path.name if self.preview_path.exists() else None,
+            "last_preview_path": self.preview_gif_path.name if self.preview_gif_path.exists() else (self.preview_path.name if self.preview_path.exists() else None),
         }
         atomic_write_text(self.status_path, json.dumps(payload, indent=2, ensure_ascii=False))
         atomic_write_text(self.history_path, json.dumps(self.history, indent=2, ensure_ascii=False))
@@ -200,16 +202,22 @@ class LiveDashboardCallback(BaseCallback):
         if isinstance(obs, tuple):
             obs = obs[0]
         frame = None
+        frames: list = []
         for _ in range(self.preview_steps):
             action, _ = self.model.predict(obs, deterministic=True)
             obs, rewards, dones, infos = self.preview_env.step(action)
             images = self.preview_env.get_images()
             if images:
                 frame = images[0]
+                frames.append(frame)
             if bool(dones[0]):
                 break
         if frame is not None:
             iio.imwrite(self.preview_path, frame)
+        if frames:
+            stride = max(len(frames) // 80, 1)
+            sampled = frames[::stride]
+            iio2.mimsave(self.preview_gif_path, sampled, format="GIF", duration=0.05, loop=0)
 
 
 def main() -> None:

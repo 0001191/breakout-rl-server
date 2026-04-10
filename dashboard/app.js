@@ -1,6 +1,7 @@
 const statusUrl = "../artifacts/live/status.json";
 const historyUrl = "../artifacts/live/history.json";
 const previewUrl = "../artifacts/live/preview.png";
+const previewGifUrl = "../artifacts/live/preview.gif";
 
 const phaseBadge = document.getElementById("phaseBadge");
 const timesteps = document.getElementById("timesteps");
@@ -113,7 +114,9 @@ async function refresh() {
     epsilon.textContent = safeNumber(status.exploration_rate, 4);
     loss.textContent = safeNumber(status.loss, 4);
     fps.textContent = `${safeNumber(status.fps, 1)} step/s`;
-    previewImage.src = `${previewUrl}?t=${Date.now()}`;
+    const previewPath = status.last_preview_path || "preview.gif";
+    const previewBase = previewPath.endsWith(".gif") ? previewGifUrl : previewUrl;
+    previewImage.src = `${previewBase}?t=${Date.now()}`;
     drawChart(history);
     renderEpisodes(status.recent_episodes || []);
   } catch (error) {
