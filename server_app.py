@@ -59,6 +59,9 @@ def api_status():
     if preview_file is not None:
         payload["last_preview_path"] = preview_file.name
         payload["preview_updated_at"] = int(preview_file.stat().st_mtime_ns)
+    if STREAM_FRAME_PATH.exists():
+        payload["stream_path"] = STREAM_FRAME_PATH.name
+        payload["stream_updated_at"] = int(STREAM_FRAME_PATH.stat().st_mtime_ns)
     return jsonify(payload)
 
 
@@ -76,6 +79,19 @@ def api_logs():
     text = log_path.read_text(encoding="utf-8", errors="replace")
     lines = text.splitlines()[-120:]
     return jsonify({"lines": lines})
+
+
+@app.get("/api/frame-status")
+def api_frame_status():
+    if not STREAM_FRAME_PATH.exists():
+        return jsonify({"available": False})
+    return jsonify(
+        {
+            "available": True,
+            "path": STREAM_FRAME_PATH.name,
+            "updated_at": int(STREAM_FRAME_PATH.stat().st_mtime_ns),
+        }
+    )
 
 
 @app.get("/api/preview-stream")

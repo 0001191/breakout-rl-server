@@ -1,7 +1,8 @@
 const statusUrl = "../artifacts/live/status.json";
 const historyUrl = "../artifacts/live/history.json";
 const previewUrl = "../artifacts/live/preview.png";
-const previewStreamUrl = "../api/preview-stream";
+const liveFrameUrl = "../artifacts/live/preview_live.jpg";
+const frameStatusUrl = "../api/frame-status";
 
 const phaseBadge = document.getElementById("phaseBadge");
 const timesteps = document.getElementById("timesteps");
@@ -16,7 +17,7 @@ const rewardChart = document.getElementById("rewardChart");
 const refreshButton = document.getElementById("refreshButton");
 const logPanel = document.getElementById("logPanel");
 
-let streamStarted = false;
+let currentFrameVersion = null;
 
 function safeNumber(value, digits = 2) {
   if (value === null || value === undefined || Number.isNaN(Number(value))) return "-";
@@ -106,15 +107,23 @@ function renderEpisodes(episodes) {
   });
 }
 
-function ensurePreviewStream(status) {
-  if (!streamStarted && status.stream_path) {
-    previewImage.src = `${previewStreamUrl}?t=${Date.now()}`;
-    streamStarted = true;
-    return;
-  }
-
-  if (!streamStarted && status.last_preview_path) {
+function ensureFallbackPreview(status) {
+  if (!currentFrameVersion && status.last_preview_path) {
     previewImage.src = `${previewUrl}?v=${status.preview_updated_at || Date.now()}`;
+  }
+}
+
+async function refreshFrame() {
+  try {
+    const frame = await loadJson(frameStatusUrl);
+    if (!frame.available) return;
+    const version = String(frame.updated_at || "");
+    if (version && version !== currentFrameVersion) {
+      previewImage.src = `${liveFrameUrl}?v=${version}`;
+      currentFrameVersion = version;
+    }
+  } catch (error) {
+    // Keep the last good frame on screen.
   }
 }
 
@@ -128,7 +137,7 @@ async function refresh() {
     epsilon.textContent = safeNumber(status.exploration_rate, 4);
     loss.textContent = safeNumber(status.loss, 4);
     fps.textContent = `${safeNumber(status.fps, 1)} step/s`;
-    ensurePreviewStream(status);
+    ensureFallbackPreview(status);
     drawChart(history);
     renderEpisodes(status.recent_episodes || []);
   } catch (error) {
@@ -144,10 +153,8 @@ async function refresh() {
   }
 }
 
-previewImage.addEventListener("error", () => {
-  streamStarted = false;
-});
-
 refreshButton.addEventListener("click", refresh);
 refresh();
-setInterval(refresh, 2500);
+refreshFrame();
+setInterval(refresh, 1500);
+setInterval(refreshFrame, 120);
