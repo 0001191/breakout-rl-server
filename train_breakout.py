@@ -77,7 +77,7 @@ def atomic_write_text(path: Path, content: str) -> None:
 
 
 def atomic_write_image(path: Path, frame) -> None:
-    tmp = path.with_suffix(path.suffix + ".tmp")
+    tmp = path.with_name(f"{path.stem}.tmp{path.suffix}")
     iio.imwrite(tmp, frame)
     tmp.replace(path)
 

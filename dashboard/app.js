@@ -1,5 +1,5 @@
-const statusUrl = "../artifacts/live/status.json";
-const historyUrl = "../artifacts/live/history.json";
+const statusUrl = "../api/status";
+const historyUrl = "../api/history";
 const previewUrl = "../artifacts/live/preview.png";
 const frameDataUrl = "../api/frame-data";
 
