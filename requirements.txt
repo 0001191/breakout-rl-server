@@ -1,0 +1,6 @@
+gymnasium[atari,accept-rom-license]>=1.2.0
+stable-baselines3[extra]>=2.8.0
+tensorboard>=2.16.0
+imageio[ffmpeg]>=2.34.0
+moviepy>=2.2.1
+Flask>=3.1.0

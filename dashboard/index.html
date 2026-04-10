@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>打砖块训练看板</title>
+    <link rel="stylesheet" href="./style.css" />
+  </head>
+  <body>
+    <main class="layout">
+      <section class="hero">
+        <div>
+          <p class="eyebrow">Breakout RL</p>
+          <h1>强化学习训练看板</h1>
+          <p class="sub">
+            这里显示的是训练中的当前策略，不是成品回放。页面会自动刷新训练状态、奖励曲线和最新环境预览帧。
+          </p>
+        </div>
+        <div class="hero-actions">
+          <button id="refreshButton">立即刷新</button>
+          <span id="phaseBadge" class="badge">等待训练</span>
+        </div>
+      </section>
+
+      <section class="grid stats">
+        <article class="card"><p>训练步数</p><h2 id="timesteps">-</h2></article>
+        <article class="card"><p>训练进度</p><h2 id="progress">-</h2></article>
+        <article class="card"><p>最近100局平均奖励</p><h2 id="meanReward">-</h2></article>
+        <article class="card"><p>Epsilon</p><h2 id="epsilon">-</h2></article>
+        <article class="card"><p>Loss</p><h2 id="loss">-</h2></article>
+        <article class="card"><p>速度</p><h2 id="fps">-</h2></article>
+      </section>
+
+      <section class="grid main-panels">
+        <article class="card preview-card">
+          <div class="card-title">
+            <h3>当前策略预览</h3>
+            <span>原始环境帧，不带视频播放器遮罩</span>
+          </div>
+          <div class="preview-wrap">
+            <img id="previewImage" alt="训练预览帧" />
+          </div>
+          <p class="hint">如果之前视频里挡板被播放器底部控件挡住，这里不会被遮住。</p>
+        </article>
+
+        <article class="card chart-card">
+          <div class="card-title">
+            <h3>训练曲线</h3>
+            <span>平均奖励和 epsilon</span>
+          </div>
+          <svg id="rewardChart" viewBox="0 0 640 260" preserveAspectRatio="none"></svg>
+        </article>
+      </section>
+
+      <section class="grid detail-panels">
+        <article class="card">
+          <div class="card-title">
+            <h3>最近几局</h3>
+            <span>从最近100局缓存里截取</span>
+          </div>
+          <div id="recentEpisodes" class="episode-list"></div>
+        </article>
+        <article class="card">
+          <div class="card-title">
+            <h3>说明</h3>
+            <span>关于训练过程</span>
+          </div>
+          <ul class="notes">
+            <li>这页展示的是训练中途当前策略的临时表现，不是最后模型的成品录像。</li>
+            <li>DeepMind 论文通常按帧数统计训练量，不只是简单说“打了多少局”。</li>
+            <li>如果你要更频繁的画面刷新，可以把训练脚本里的 `--preview-freq` 调小。</li>
+          </ul>
+        </article>
+      </section>
+
+      <section class="grid">
+        <article class="card">
+          <div class="card-title">
+            <h3>最近日志</h3>
+            <span>服务器上训练脚本最近输出</span>
+          </div>
+          <pre id="logPanel" class="log-panel">等待日志...</pre>
+        </article>
+      </section>
+    </main>
+
+    <script src="./app.js"></script>
+  </body>
+  </html>

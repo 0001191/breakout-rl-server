@@ -1,0 +1,8 @@
+__pycache__/
+artifacts/
+*.pyc
+*.pyo
+*.pyd
+*.log
+*.tmp
+breakout_project_upload.zip
